@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090d15">
+  <title>Morphogenesis Engine — Living Canvas</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #090d15;
+      color: #edf0ec;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+      --muted: #8993a2;
+      --line: rgba(201, 215, 225, .14);
+      --gold: #e7bd70;
+      --glass: rgba(12, 18, 29, .82);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; min-height: 100vh; overflow: hidden; }
+    button { font: inherit; color: inherit; }
+    .scene { position: fixed; inset: 0; overflow: hidden; background: radial-gradient(ellipse at 52% 50%, #172230 0%, #0b111b 52%, #080b12 100%); }
+    #canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    .vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 52%, transparent 42%, rgba(5, 8, 14, .48) 100%); }
+    .topbar { position: absolute; z-index: 2; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: 26px 34px; pointer-events: none; }
+    .brand, .top-status { pointer-events: auto; }
+    .brand { display: flex; gap: 13px; align-items: center; }
+    .brand-mark { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid rgba(231,189,112,.54); border-radius: 50%; color: var(--gold); font-size: 18px; box-shadow: 0 0 22px rgba(231,189,112,.1); }
+    .brand-name { font-size: 11px; font-weight: 650; letter-spacing: .21em; text-transform: uppercase; }
+    .brand-sub { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; }
+    .top-status { display: flex; align-items: center; gap: 9px; color: #c4d2c9; font-size: 10px; letter-spacing: .13em; text-transform: uppercase; }
+    .live-dot { width: 6px; height: 6px; border-radius: 50%; background: #8fe0b6; box-shadow: 0 0 12px #8fe0b6; }
+    .panel { position: absolute; z-index: 2; top: 50%; right: clamp(16px, 4.2vw, 68px); width: min(300px, calc(100vw - 32px)); transform: translateY(-43%); padding: 24px; border: 1px solid var(--line); border-radius: 5px; background: var(--glass); box-shadow: 0 20px 70px rgba(0,0,0,.26); backdrop-filter: blur(18px); }
+    .eyebrow { color: var(--gold); font-size: 9px; letter-spacing: .23em; text-transform: uppercase; }
+    h1 { margin: 12px 0 9px; font-size: 30px; line-height: 1.08; font-weight: 500; letter-spacing: -.045em; }
+    .description { margin: 0; color: #a6b0ba; font-size: 12px; line-height: 1.7; }
+    .rule { height: 1px; margin: 20px 0; background: var(--line); }
+    .section-heading { display: flex; justify-content: space-between; margin-bottom: 12px; color: #d5dce0; font-size: 10px; letter-spacing: .13em; text-transform: uppercase; }
+    .section-heading span:last-child { color: var(--muted); letter-spacing: .05em; }
+    .stages { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .stage { padding: 10px 6px 9px; border: 1px solid var(--line); border-radius: 3px; background: transparent; color: #9ba5b1; text-align: left; cursor: pointer; transition: .2s ease; }
+    .stage:hover { border-color: rgba(231,189,112,.52); color: #f2dfbb; }
+    .stage[aria-pressed="true"] { border-color: rgba(231,189,112,.72); background: rgba(231,189,112,.09); color: #f0d59f; }
+    .stage-number { display: block; margin-bottom: 6px; font-size: 9px; letter-spacing: .15em; opacity: .72; }
+    .stage-label { font-size: 10px; }
+    .stage-info { min-height: 35px; margin: 11px 0 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
+    .actions { display: flex; gap: 8px; }
+    .control { display: flex; flex: 1; align-items: center; justify-content: center; gap: 7px; min-height: 36px; border: 1px solid var(--line); border-radius: 3px; background: rgba(255,255,255,.025); color: #c8d0d5; font-size: 10px; cursor: pointer; transition: .2s; }
+    .control:hover { border-color: rgba(231,189,112,.55); color: #f2dfbb; }
+    .control svg { width: 13px; height: 13px; }
+    .bottom-left { position: absolute; z-index: 2; bottom: 28px; left: 34px; display: flex; align-items: center; gap: 19px; color: #9da8b3; font-size: 9px; letter-spacing: .13em; text-transform: uppercase; }
+    .metric { display: flex; align-items: center; gap: 7px; }
+    .metric strong { color: #dce2e4; font-weight: 500; }
+    .bottom-right { position: absolute; z-index: 2; right: 34px; bottom: 28px; color: #778390; font-size: 9px; letter-spacing: .13em; text-transform: uppercase; }
+    .hint { position: absolute; z-index: 1; bottom: 28px; left: 50%; transform: translateX(-50%); color: rgba(183,194,204,.54); font-size: 9px; letter-spacing: .13em; text-transform: uppercase; white-space: nowrap; }
+    .fallback { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; padding: 30px; color: #e7bd70; text-align: center; }
+    @media (max-width: 700px) {
+      body { overflow: auto; }
+      .scene { position: fixed; height: 100svh; }
+      .topbar { padding: 18px 18px; }
+      .panel { top: auto; right: 16px; bottom: 58px; left: 16px; width: auto; transform: none; padding: 17px; }
+      h1 { margin: 8px 0 6px; font-size: 24px; }
+      .description { max-width: 420px; font-size: 11px; }
+      .rule { margin: 13px 0; }
+      .bottom-left { bottom: 20px; left: 18px; gap: 12px; font-size: 8px; }
+      .bottom-right { right: 18px; bottom: 20px; font-size: 8px; }
+      .hint { display: none; }
+      .top-status { font-size: 8px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <main class="scene" aria-label="Interactive 3D generative art landscape">
+    <canvas id="canvas" aria-label="Animated Voronoi micro-landscape"></canvas>
+    <div class="vignette"></div>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">✳</div>
+        <div><span class="brand-name">Morphogenesis</span><span class="brand-sub">Engine · Generative worlds</span></div>
+      </div>
+      <div class="top-status"><span class="live-dot"></span><span id="runtime-status">Live simulation</span></div>
+    </header>
+    <section class="panel" aria-labelledby="title">
+      <div class="eyebrow">01 / Living canvas</div>
+      <h1 id="title">A world in<br>the making.</h1>
+      <p class="description">A living micro-landscape shaped by cellular geometry, golden coastlines, and emergent forms.</p>
+      <div class="rule"></div>
+      <div class="section-heading"><span>Development stage</span><span id="stage-count">01 / 03</span></div>
+      <div class="stages" role="group" aria-label="Select development stage">
+        <button class="stage" data-stage="0" aria-pressed="true"><span class="stage-number">01</span><span class="stage-label">MVP</span></button>
+        <button class="stage" data-stage="1" aria-pressed="false"><span class="stage-number">02</span><span class="stage-label">Enhanced</span></button>
+        <button class="stage" data-stage="2" aria-pressed="false"><span class="stage-number">03</span><span class="stage-label">Advanced</span></button>
+      </div>
+      <p class="stage-info" id="stage-info" aria-live="polite">Living cells, sculpted terrain, and a calm, shifting light field.</p>
+      <div class="rule"></div>
+      <div class="actions">
+        <button class="control" id="pause-button" aria-pressed="false">
+          <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5 3h2v10H5zm4 0h2v10H9z"/></svg><span>Pause motion</span>
+        </button>
+        <button class="control" id="reset-button">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 7a5 5 0 1 1 1 4M3 3v4h4"/></svg><span>Reset view</span>
+        </button>
+        <button class="control" id="fullscreen-button" aria-label="Enter fullscreen">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>
+        </button>
+      </div>
+    </section>
+    <div class="bottom-left">
+      <span class="metric"><span class="live-dot"></span><strong id="fps">--</strong> FPS</span>
+      <span class="metric"><strong id="quality">MVP</strong> Quality</span>
+    </div>
+    <div class="hint">Drag to orbit <span aria-hidden="true">·</span> Scroll to explore</div>
+    <div class="bottom-right">Offline · WebGL 2</div>
+    <div class="fallback" id="fallback">This canvas needs a browser with WebGL 2 support.</div>
+  </main>
+  <script>
+    (() => {
+      "use strict";
+      const canvas = document.querySelector("#canvas");
+      const gl = canvas.getContext("webgl2", { antialias: true, alpha: false });
+      const fallback = document.querySelector("#fallback");
+      if (!gl) {
+        canvas.style.display = "none";
+        fallback.style.display = "flex";
+        document.querySelector("#runtime-status").textContent = "WebGL 2 unavailable";
+        return;
+      }
+
+      const vertexSource = `#version 300 es
+        precision highp float;
+        in vec3 position;
+        uniform mat4 viewProjection;
+        uniform float time;
+        uniform float stage;
+        out vec3 worldPos;
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float heightAt(vec2 p) {
+          vec2 cell = floor(p / 1.75);
+          vec2 local = fract(p / 1.75);
+          float nearest = 10.0;
+          for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+            vec2 id = cell + vec2(float(x), float(y));
+            vec2 site = vec2(float(x), float(y)) + .2 + .6 * vec2(hash(id), hash(id + 9.2));
+            nearest = min(nearest, length((local - site) * 1.75));
+          }
+          float basin = smoothstep(1.05, .12, nearest);
+          float wave = sin(p.x * 1.35 + time * .55) * cos(p.y * 1.1 - time * .38);
+          return -.18 + basin * .43 + wave * (.045 + stage * .025) + sin(p.x * 3.1 + p.y * 2.2 + time * .32) * stage * .018;
+        }
+        void main() {
+          vec3 p = position;
+          p.y = heightAt(p.xz);
+          worldPos = p;
+          gl_Position = viewProjection * vec4(p, 1.0);
+        }`;
+
+      const fragmentSource = `#version 300 es
+        precision highp float;
+        in vec3 worldPos;
+        uniform float time;
+        uniform float stage;
+        out vec4 outColor;
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float segmentDistance(vec2 p, vec2 a, vec2 b) {
+          vec2 v = b - a;
+          float t = clamp(dot(p - a, v) / dot(v, v), 0.0, 1.0);
+          return length(p - (a + t * v));
+        }
+        void main() {
+          vec2 p = worldPos.xz;
+          vec2 base = floor(p / 1.75);
+          vec2 local = fract(p / 1.75);
+          float first = 10.0, second = 10.0;
+          vec2 nearestId = vec2(0.0), nearestLocal = vec2(0.0);
+          for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+            vec2 offset = vec2(float(x), float(y));
+            vec2 id = base + offset;
+            vec2 site = offset + .2 + .6 * vec2(hash(id), hash(id + 9.2));
+            float d = length((local - site) * 1.75);
+            if (d < first) { second = first; first = d; nearestId = id; nearestLocal = (local - site) * 1.75; }
+            else if (d < second) { second = d; }
+          }
+          float edge = second - first;
+          float cellType = hash(nearestId + 4.7);
+          vec3 deep = vec3(.035, .105, .135);
+          vec3 teal = vec3(.075, .28, .29);
+          vec3 sea = vec3(.10, .38, .36);
+          vec3 cellColor = mix(deep, teal, smoothstep(.08, .78, cellType));
+          cellColor = mix(cellColor, sea, smoothstep(.72, .98, cellType) * .7);
+          float pulse = .5 + .5 * sin(time * .8 + cellType * 9.0);
+          cellColor += vec3(.02, .075, .067) * pulse * (.4 + stage * .3);
+          float coast = 1.0 - smoothstep(.012, .055 + stage * .008, edge);
+          vec3 gold = vec3(1.0, .68, .29) * (1.0 + .25 * pulse);
+          cellColor = mix(cellColor, gold, coast * .92);
+          float r = length(nearestLocal);
+          float angle = atan(nearestLocal.y, nearestLocal.x);
+          float branch = abs(sin(angle * (3.0 + floor(cellType * 3.0)) + sin(angle * 2.0) * .7));
+          float coralLine = abs(r - (.22 + branch * .24 + .08 * sin(angle * 5.0 + time * .35)));
+          float coral = (1.0 - smoothstep(.018, .055, coralLine)) * step(.32, cellType) * (1.0 - smoothstep(.58, .9, r));
+          coral *= .45 + .55 * pulse;
+          vec3 coralColor = mix(vec3(.9, .32, .2), vec3(.97, .57, .31), cellType);
+          cellColor = mix(cellColor, coralColor, coral * (.5 + stage * .18));
+          float ridge = smoothstep(.0, .35, worldPos.y + .2);
+          cellColor *= .85 + ridge * .22;
+          vec3 n = normalize(vec3(-.18 * cos(p.x * 1.3), 1.0, -.14 * sin(p.y * 1.1)));
+          float light = .63 + .37 * max(dot(n, normalize(vec3(-.4, .85, .5))), 0.0);
+          float grain = hash(gl_FragCoord.xy + floor(time * 8.0)) * .035;
+          outColor = vec4(cellColor * light + grain, 1.0);
+        }`;
+
+      const objectVertexSource = `#version 300 es
+        precision highp float;
+        in vec3 position;
+        in vec3 color;
+        uniform mat4 viewProjection;
+        out vec3 objectColor;
+        void main() {
+          objectColor = color;
+          gl_Position = viewProjection * vec4(position, 1.0);
+          gl_PointSize = 3.0;
+        }`;
+      const objectFragmentSource = `#version 300 es
+        precision highp float;
+        in vec3 objectColor;
+        out vec4 outColor;
+        void main() {
+          vec2 p = gl_PointCoord - .5;
+          float glow = 1.0 - smoothstep(.13, .5, length(p));
+          outColor = vec4(objectColor, glow);
+        }`;
+
+      function compile(type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader));
+        return shader;
+      }
+      function program(vertex, fragment) {
+        const result = gl.createProgram();
+        gl.attachShader(result, compile(gl.VERTEX_SHADER, vertex));
+        gl.attachShader(result, compile(gl.FRAGMENT_SHADER, fragment));
+        gl.linkProgram(result);
+        if (!gl.getProgramParameter(result, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(result));
+        return result;
+      }
+      let terrainProgram;
+      let objectProgram;
+      try {
+        terrainProgram = program(vertexSource, fragmentSource);
+        objectProgram = program(objectVertexSource, objectFragmentSource);
+      } catch (error) {
+        canvas.style.display = "none";
+        fallback.textContent = "The graphics driver could not compile the canvas shaders.";
+        fallback.style.display = "flex";
+        document.querySelector("#runtime-status").textContent = "Renderer unavailable";
+        console.error(error);
+        return;
+      }
+
+      const terrainCount = 132;
+      const terrainVertices = [];
+      const terrainIndices = [];
+      for (let z = 0; z <= terrainCount; z++) for (let x = 0; x <= terrainCount; x++) {
+        terrainVertices.push(-8 + 16 * x / terrainCount, 0, -8 + 16 * z / terrainCount);
+        if (x < terrainCount && z < terrainCount) {
+          const i = z * (terrainCount + 1) + x;
+          terrainIndices.push(i, i + terrainCount + 1, i + 1, i + 1, i + terrainCount + 1, i + terrainCount + 2);
+        }
+      }
+      const terrainVao = gl.createVertexArray();
+      gl.bindVertexArray(terrainVao);
+      const terrainBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, terrainBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(terrainVertices), gl.STATIC_DRAW);
+      const terrainPosition = gl.getAttribLocation(terrainProgram, "position");
+      gl.enableVertexAttribArray(terrainPosition);
+      gl.vertexAttribPointer(terrainPosition, 3, gl.FLOAT, false, 0, 0);
+      const indexBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(terrainIndices), gl.STATIC_DRAW);
+      gl.bindVertexArray(null);
+
+      const objects = [];
+      const ringColors = [[1, .69, .31], [.42, .88, .79], [.96, .45, .36], [.72, .69, .94]];
+      for (let ring = 0; ring < 8; ring++) {
+        const vertices = [];
+        const color = ringColors[ring % ringColors.length];
+        const major = .27 + (ring % 3) * .08;
+        const minor = .012 + (ring % 2) * .006;
+        for (let a = 0; a <= 64; a++) for (let b = 0; b <= 10; b++) {
+          const u = a / 64 * Math.PI * 2;
+          const v = b / 10 * Math.PI * 2;
+          const radius = major + minor * Math.cos(v);
+          vertices.push(radius * Math.cos(u), minor * Math.sin(v), radius * Math.sin(u), ...color);
+        }
+        const indices = [];
+        for (let a = 0; a < 64; a++) for (let b = 0; b < 10; b++) {
+          const i = a * 11 + b;
+          indices.push(i, i + 11, i + 1, i + 1, i + 11, i + 12);
+        }
+        objects.push({ vertices: new Float32Array(vertices), indices: new Uint16Array(indices), ring, count: indices.length });
+      }
+      const particleData = [];
+      let seed = 57821;
+      const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+      for (let i = 0; i < 260; i++) {
+        const x = (random() - .5) * 11;
+        const z = (random() - .5) * 9;
+        const y = .65 + random() * 2.35;
+        const color = i % 4 === 0 ? [1, .7, .39] : i % 3 === 0 ? [.46, .9, .78] : [.7, .86, .91];
+        particleData.push(x, y, z, ...color);
+      }
+      const particleBufferData = new Float32Array(particleData);
+      const objectVao = gl.createVertexArray();
+      gl.bindVertexArray(objectVao);
+      const objectBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, objectBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, 0, gl.DYNAMIC_DRAW);
+      const objectPosLoc = gl.getAttribLocation(objectProgram, "position");
+      const objectColorLoc = gl.getAttribLocation(objectProgram, "color");
+      gl.enableVertexAttribArray(objectPosLoc);
+      gl.vertexAttribPointer(objectPosLoc, 3, gl.FLOAT, false, 24, 0);
+      gl.enableVertexAttribArray(objectColorLoc);
+      gl.vertexAttribPointer(objectColorLoc, 3, gl.FLOAT, false, 24, 12);
+      const objectIndexBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, objectIndexBuffer);
+      gl.bindVertexArray(null);
+
+      const uniform = (p, name) => gl.getUniformLocation(p, name);
+      const terrainViewLoc = uniform(terrainProgram, "viewProjection");
+      const terrainTimeLoc = uniform(terrainProgram, "time");
+      const terrainStageLoc = uniform(terrainProgram, "stage");
+      const objectViewLoc = uniform(objectProgram, "viewProjection");
+      const stageDescriptions = [
+        "Living cells, sculpted terrain, and a calm, shifting light field.",
+        "Growing coral branches, stronger membrane pulses, and more dimensional relief.",
+        "Dense bioluminescence, layered organisms, and richly animated terrain."
+      ];
+      let activeStage = 0;
+      let paused = false;
+      let elapsed = 0;
+      let lastFrame = performance.now();
+      let frameCounter = 0;
+      let fpsSince = lastFrame;
+      let yaw = .55;
+      let elevation = .68;
+      let distance = 14.6;
+      let renderScale = 1.25;
+      let dragging = false;
+      let lastX = 0, lastY = 0;
+      const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const stageButtons = [...document.querySelectorAll(".stage")];
+
+      function setStage(stage) {
+        activeStage = Math.max(0, Math.min(2, stage));
+        stageButtons.forEach((button, index) => button.setAttribute("aria-pressed", String(index === activeStage)));
+        document.querySelector("#stage-count").textContent = `0${activeStage + 1} / 03`;
+        document.querySelector("#stage-info").textContent = stageDescriptions[activeStage];
+        document.querySelector("#quality").textContent = ["MVP", "Enhanced", "Advanced"][activeStage];
+      }
+      stageButtons.forEach(button => button.addEventListener("click", () => setStage(Number(button.dataset.stage))));
+
+      function perspective(fov, aspect, near, far) {
+        const f = 1 / Math.tan(fov / 2);
+        const nf = 1 / (near - far);
+        return new Float32Array([f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) * nf, -1, 0, 0, 2 * far * near * nf, 0]);
+      }
+      function viewMatrix(eye, target) {
+        const z = normalize([eye[0] - target[0], eye[1] - target[1], eye[2] - target[2]]);
+        const x = normalize(cross([0, 1, 0], z));
+        const y = cross(z, x);
+        return new Float32Array([
+          x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0,
+          -dot(x, eye), -dot(y, eye), -dot(z, eye), 1
+        ]);
+      }
+      function normalize(v) { const length = Math.hypot(...v) || 1; return v.map(value => value / length); }
+      function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+      function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+      function multiply(a, b) {
+        const out = new Float32Array(16);
+        for (let column = 0; column < 4; column++) for (let row = 0; row < 4; row++) {
+          out[column * 4 + row] = a[row] * b[column * 4] + a[4 + row] * b[column * 4 + 1] + a[8 + row] * b[column * 4 + 2] + a[12 + row] * b[column * 4 + 3];
+        }
+        return out;
+      }
+      function cameraMatrix() {
+        const eye = [Math.sin(yaw) * Math.cos(elevation) * distance, Math.sin(elevation) * distance, Math.cos(yaw) * Math.cos(elevation) * distance];
+        return multiply(perspective(Math.PI / 3.25, canvas.width / canvas.height, .1, 60), viewMatrix(eye, [0, .35, 0]));
+      }
+      function resize() {
+        const dpr = Math.min(window.devicePixelRatio || 1, renderScale);
+        const width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+        const height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+          gl.viewport(0, 0, width, height);
+        }
+      }
+      function drawObjects(time, viewProjection) {
+        gl.useProgram(objectProgram);
+        gl.uniformMatrix4fv(objectViewLoc, false, viewProjection);
+        gl.bindVertexArray(objectVao);
+        for (const item of objects) {
+          const index = item.ring;
+          const angle = time * (.14 + index * .012) + index * 2.399;
+          const radius = 1.25 + (index % 4) * .93;
+          const centerX = Math.cos(angle) * radius;
+          const centerZ = Math.sin(angle) * radius * .72;
+          const centerY = 1.0 + (index % 3) * .32 + Math.sin(time * .7 + index) * .15;
+          const tilt = .35 + index * .24 + Math.sin(time * .4 + index) * .14;
+          const c = Math.cos(tilt), s = Math.sin(tilt);
+          const transformed = new Float32Array(item.vertices.length);
+          for (let i = 0; i < item.vertices.length; i += 6) {
+            const x = item.vertices[i], y = item.vertices[i + 1], z = item.vertices[i + 2];
+            transformed[i] = centerX + x * c - y * s;
+            transformed[i + 1] = centerY + x * s + y * c;
+            transformed[i + 2] = centerZ + z;
+            transformed[i + 3] = item.vertices[i + 3];
+            transformed[i + 4] = item.vertices[i + 4];
+            transformed[i + 5] = item.vertices[i + 5];
+          }
+          gl.bindBuffer(gl.ARRAY_BUFFER, objectBuffer);
+          gl.bufferData(gl.ARRAY_BUFFER, transformed, gl.DYNAMIC_DRAW);
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, objectIndexBuffer);
+          gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, item.indices, gl.STATIC_DRAW);
+          gl.drawElements(gl.TRIANGLES, item.count, gl.UNSIGNED_SHORT, 0);
+        }
+        const particles = new Float32Array(particleBufferData);
+        for (let i = 0; i < particles.length; i += 6) {
+          particles[i + 1] += Math.sin(time * .7 + particles[i] * .8 + particles[i + 2]) * .12;
+        }
+        gl.bindBuffer(gl.ARRAY_BUFFER, objectBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, particles, gl.DYNAMIC_DRAW);
+        gl.drawArrays(gl.POINTS, 0, particles.length / 6);
+        gl.bindVertexArray(null);
+      }
+
+      function render(now) {
+        const delta = Math.min((now - lastFrame) / 1000, .05);
+        lastFrame = now;
+        if (!paused && !reducedMotion) elapsed += delta;
+        else if (!paused && reducedMotion) elapsed += delta * .22;
+        resize();
+        gl.enable(gl.DEPTH_TEST);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.clearColor(.035, .05, .073, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        const viewProjection = cameraMatrix();
+        gl.useProgram(terrainProgram);
+        gl.uniformMatrix4fv(terrainViewLoc, false, viewProjection);
+        gl.uniform1f(terrainTimeLoc, elapsed);
+        gl.uniform1f(terrainStageLoc, activeStage);
+        gl.bindVertexArray(terrainVao);
+        gl.drawElements(gl.TRIANGLES, terrainIndices.length, gl.UNSIGNED_SHORT, 0);
+        drawObjects(elapsed, viewProjection);
+        frameCounter++;
+        if (now - fpsSince > 600) {
+          const measuredFps = frameCounter * 1000 / (now - fpsSince);
+          document.querySelector("#fps").textContent = Math.round(measuredFps);
+          if (measuredFps < 28) renderScale = Math.max(.7, renderScale - .12);
+          else if (measuredFps > 54) renderScale = Math.min(activeStage === 2 ? 1.55 : 1.25, renderScale + .04);
+          frameCounter = 0;
+          fpsSince = now;
+        }
+        requestAnimationFrame(render);
+      }
+      document.querySelector("#pause-button").addEventListener("click", event => {
+        paused = !paused;
+        event.currentTarget.setAttribute("aria-pressed", String(paused));
+        event.currentTarget.querySelector("span").textContent = paused ? "Resume motion" : "Pause motion";
+        document.querySelector("#runtime-status").textContent = paused ? "Simulation paused" : "Live simulation";
+      });
+      document.querySelector("#reset-button").addEventListener("click", () => {
+        yaw = .55; elevation = .68; distance = 14.6;
+      });
+      document.querySelector("#fullscreen-button").addEventListener("click", async () => {
+        try {
+          if (!document.fullscreenElement) await document.querySelector(".scene").requestFullscreen();
+          else await document.exitFullscreen();
+        } catch (error) {
+          document.querySelector("#runtime-status").textContent = "Fullscreen unavailable";
+        }
+      });
+      canvas.addEventListener("pointerdown", event => {
+        dragging = true; lastX = event.clientX; lastY = event.clientY;
+        canvas.setPointerCapture(event.pointerId);
+      });
+      canvas.addEventListener("pointermove", event => {
+        if (!dragging) return;
+        yaw -= (event.clientX - lastX) * .006;
+        elevation = Math.max(.18, Math.min(1.25, elevation + (event.clientY - lastY) * .005));
+        lastX = event.clientX; lastY = event.clientY;
+      });
+      canvas.addEventListener("pointerup", () => { dragging = false; });
+      canvas.addEventListener("pointercancel", () => { dragging = false; });
+      canvas.addEventListener("wheel", event => {
+        event.preventDefault();
+        distance = Math.max(9, Math.min(23, distance + event.deltaY * .012));
+      }, { passive: false });
+      window.addEventListener("keydown", event => {
+        if (event.target instanceof HTMLButtonElement) return;
+        if (event.code === "Space") {
+          event.preventDefault();
+          document.querySelector("#pause-button").click();
+        }
+        if (["1", "2", "3"].includes(event.key)) setStage(Number(event.key) - 1);
+      });
+      setStage(0);
+      requestAnimationFrame(render);
+    })();
+  </script>
+</body>
+</html>
