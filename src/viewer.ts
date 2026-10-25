@@ -23,7 +23,7 @@ export function createViewer(
   const renderer = new WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.55;
+  renderer.toneMappingExposure = 1.05;
   renderer.setClearColor(0x091514);
   renderer.domElement.setAttribute('aria-label', 'Interaktive 3D-Landschaft: Ziehen zum Drehen, Mausrad zum Zoomen.');
   renderer.domElement.setAttribute('tabindex', '0');
@@ -35,11 +35,11 @@ export function createViewer(
   const scene = new Scene();
   scene.background = new Color(0x091514);
   scene.fog = new FogExp2(0x091514, 0.009);
-  scene.add(new HemisphereLight(0xd5fff1, 0x253332, 2.9));
-  const key = new DirectionalLight(0xffedcb, 5.2);
+  scene.add(new HemisphereLight(0xd5fff1, 0x182124, 1.7));
+  const key = new DirectionalLight(0xffedcb, 3.2);
   key.position.set(-12, 24, 18);
   scene.add(key);
-  const rim = new DirectionalLight(0x67ffe0, 3.4);
+  const rim = new DirectionalLight(0x67ffe0, 1.8);
   rim.position.set(14, 12, -15);
   scene.add(rim);
   const gold = new PointLight(0xffb962, 35, 45, 1.4);
