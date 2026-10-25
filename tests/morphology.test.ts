@@ -2,6 +2,17 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createMorphology, simulateReactionDiffusion } from '../src/morphology';
 
+test('requested chemical timeline steps actually change reproducible morphology', () => {
+  const initial = createMorphology(42, 480), later = createMorphology(42, 960), repeat = createMorphology(42, 960);
+  let changed = 0;
+  for (let z = -8; z <= 8; z += 1) for (let x = -10; x <= 10; x += 1) {
+    assert.equal(later.chemistry(x, z), repeat.chemistry(x, z));
+    if (Math.abs(initial.chemistry(x, z) - later.chemistry(x, z)) > 0.02) changed++;
+  }
+  assert.ok(changed > 50, 'numerical integration advances chemical pattern');
+  assert.throws(() => createMorphology(42, 10001), RangeError);
+});
+
 test('Gray–Scott integrates chemicals rather than returning seeded decoration', () => {
   const initial = simulateReactionDiffusion(23, 40, 32, 0);
   const evolved = simulateReactionDiffusion(23, 40, 32, 360);

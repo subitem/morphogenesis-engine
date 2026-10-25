@@ -1,12 +1,9 @@
-import { BufferGeometry, Color, Float32BufferAttribute, Group, Mesh, MeshStandardMaterial } from 'three';
+import { BufferAttribute, BufferGeometry, Group, Mesh, MeshStandardMaterial } from 'three';
 import type { WorldHandle, WorldSettings } from './contracts';
-import { createMorphology } from './morphology';
-import { extractIsosurface } from './isosurface';
-import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import type { SurfaceFrame } from './generation-contracts';
 
-/** One biochemical volume, polygonized into real porous surfaces. */
-export function createWorld(seed = 42): WorldHandle {
-  const field = createMorphology(seed);
+/** Presentation only: generation, meshing, welding and color baking live in the worker. */
+export function createWorld(frame?: SurfaceFrame): WorldHandle {
   const group = new Group();
   group.name = 'Reaction–diffusion / implicit morphology';
   const uniforms = { morphTime: { value: 0 }, morphIntensity: { value: 0.7 } };
@@ -34,62 +31,42 @@ export function createWorld(seed = 42): WorldHandle {
     `);
   };
   material.customProgramCacheKey = () => 'implicit-volume-deformation-v1';
-  const geometries = new Map<string, BufferGeometry>();
   const mesh = new Mesh(new BufferGeometry(), material);
-  mesh.geometry.dispose();
   mesh.name = 'Biochemical isosurface';
-  mesh.userData.seed = seed;
+  mesh.visible = false;
   group.add(mesh);
-  const teal = new Color(0x138e7c), light = new Color(0x71cbb0);
-  const gold = new Color(0xc99c42), deep = new Color(0x1d3657);
-  const color = new Color();
-  function geometryFor(quality: 'low' | 'high'): BufferGeometry {
-    const cached = geometries.get(quality);
-    if (cached) return cached;
-    const resolution: [number, number, number] = quality === 'high' ? [144, 56, 120] : [96, 40, 80];
-    const surface = extractIsosurface(field.density, field.bounds, resolution);
-    const geometry = new BufferGeometry();
-    geometry.setAttribute('position', new Float32BufferAttribute(surface.positions, 3));
-    geometry.setAttribute('normal', new Float32BufferAttribute(surface.normals, 3));
-    const colors = new Float32Array(surface.positions.length);
-    for (let i = 0; i < surface.positions.length; i += 3) {
-      const x = surface.positions[i], y = surface.positions[i + 1], z = surface.positions[i + 2];
-      const chemical = field.chemistry(x, z);
-      const ridge = Math.max(0, 1 - Math.abs(chemical - 0.48) * 7);
-      color.copy(deep).lerp(teal, Math.min(1, 0.3 + chemical));
-      color.lerp(light, Math.max(0, Math.min(0.6, y * 0.08)));
-      color.lerp(gold, ridge * 0.82);
-      colors[i] = color.r; colors[i + 1] = color.g; colors[i + 2] = color.b;
-    }
-    geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
-    // Weld shared edge intersections into a connected indexed mesh. Derive
-    // shading normals from the resolved geometry, avoiding opposing thin-sheet
-    // gradient samples producing per-triangle shading discontinuities.
-    geometry.deleteAttribute('normal');
-    const indexed = mergeVertices(geometry, 0.00001);
-    geometry.dispose();
-    indexed.computeVertexNormals();
-    indexed.computeBoundingSphere();
-    // Three.js culls CPU bounds; include the maximum shader displacement.
-    if (indexed.boundingSphere) indexed.boundingSphere.radius += Math.sqrt(3) * 0.2;
-    geometries.set(quality, indexed);
-    return indexed;
-  }
-  mesh.geometry = geometryFor('high');
   let disposed = false;
+  function replaceFrame(next: SurfaceFrame): void {
+    if (disposed) return;
+    const geometry = new BufferGeometry();
+    // Disposing GPU geometry never mutates buffers retained for export/recovery.
+    geometry.setAttribute('position', new BufferAttribute(next.positions, 3));
+    geometry.setAttribute('normal', new BufferAttribute(next.normals, 3));
+    geometry.setAttribute('color', new BufferAttribute(next.colors, 3));
+    geometry.setIndex(new BufferAttribute(next.indices, 1));
+    geometry.computeBoundingSphere();
+    // Three.js culls CPU bounds; include the maximum shader displacement.
+    if (geometry.boundingSphere) geometry.boundingSphere.radius += Math.sqrt(3) * 0.2;
+    const previous = mesh.geometry;
+    mesh.geometry = geometry;
+    mesh.userData.seed = next.seed;
+    mesh.userData.frame = next.frame;
+    mesh.visible = true;
+    previous.dispose();
+  }
+  if (frame) replaceFrame(frame);
   return {
     group,
+    replaceFrame,
     update(time: number, settings: WorldSettings) {
       if (disposed) return;
       uniforms.morphTime.value = Number.isFinite(time) ? time : 0;
       uniforms.morphIntensity.value = Math.max(0, Math.min(2, Number.isFinite(settings.intensity) ? settings.intensity : 0));
-      mesh.geometry = geometryFor(settings.quality === 'low' ? 'low' : 'high');
     },
     dispose() {
       if (disposed) return;
       disposed = true;
-      geometries.forEach(geometry => geometry.dispose());
-      geometries.clear(); material.dispose(); group.clear(); group.removeFromParent();
+      mesh.geometry.dispose(); material.dispose(); group.clear(); group.removeFromParent();
     },
   };
 }

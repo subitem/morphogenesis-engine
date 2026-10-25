@@ -14,6 +14,9 @@ try {
    case 'settings': viewer.setSettings(action.value); break;
    case 'seed': viewer.regenerate(action.value); break;
    case 'reset': viewer.resetCamera(); break;
+   case 'seek': viewer.seek(action.value); break;
+   case 'export': viewer.exportFrame(); break;
+   case 'import': void viewer.importFrame(action.value); break;
   }
  });
  // BFCache pages must retain their renderer when navigating away and back.

@@ -77,8 +77,8 @@ export function simulateReactionDiffusion(seed: number, width = 112, height = 96
  * collections of decorative rings, spheres or cylinders. This is mathematical
  * generative geometry, not a claim of a biological or fluid simulation.
  */
-export function createMorphology(seed: number): MorphologyField {
-  const grid = simulateReactionDiffusion(seed);
+export function createMorphology(seed: number, steps = 480): MorphologyField {
+  const grid = simulateReactionDiffusion(seed, 112, 96, steps);
   const random = randomStream(seed ^ 0x53c5a3);
   const p = Array.from({ length: 8 }, () => random() * Math.PI * 2);
   let maxConcentration = 0;
